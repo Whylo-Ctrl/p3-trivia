@@ -548,7 +548,7 @@ const $ = s => document.querySelector(s);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => (n < 0 ? '−' : '') + Math.abs(n).toLocaleString('en-US');
-const pc = n => 'P$' + Math.max(0, n).toLocaleString('en-US');
+const pc = n => '$' + Math.max(0, n).toLocaleString('en-US'); // P-Cash amounts
 const signed = n => (n < 0 ? '−' : '+') + Math.abs(n).toLocaleString('en-US');
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const nums = s => String(s).split(/[,\s]+/).map(x => parseInt(x.replace(/[^\d-]/g, ''), 10)).filter(n => !isNaN(n));
@@ -2083,7 +2083,7 @@ function ovBribe(u) {
   const quick = [100, 300, 500].filter(n => n < p.pcash);
   return '<div class="sheet action" style="--sc:var(--money);width:min(600px,100%)" role="dialog" aria-label="Bribe the host">' +
     '<div class="act-head"><div><div class="act-spot">Bribe the host</div><div class="act-why">P-Cash</div></div><div class="act-who">' + avatar(p, 'sm') + esc(p.name) + '</div></div>' +
-    '<p class="lead">' + esc(p.name) + ' has <b>' + pc(p.pcash) + '</b>. How much are they paying?</p>' +
+    '<p class="lead">' + esc(p.name) + ' has <b>' + pc(p.pcash) + '</b> in P-Cash. How much are they paying?</p>' +
     '<div class="wagers">' + quick.map(n => '<button class="btn big" data-act="bribeAmt" data-amt="' + n + '">' + pc(n) + '</button>').join('') + '<button class="btn primary big" data-act="bribeAmt" data-amt="' + p.pcash + '">All \u00b7 ' + pc(p.pcash) + '</button></div>' +
     '<label class="field">Amount<input class="input" id="br-amt" inputmode="numeric" autocomplete="off" placeholder="P-Cash to pay"></label>' +
     '<label class="field">What\u2019s it for? (optional)<input class="input" id="br-for" autocomplete="off" placeholder="A hint, a do-over, picking the next question\u2026"></label>' +
@@ -2421,7 +2421,7 @@ function ovBribes() {
     const p = player(b.pid), short = (p.pcash || 0) < b.amt;
     return '<div class="bribe-row">' + avatar(p, 'sm') + '<div class="bribe-what"><span><b>' + esc(p.name) + '</b> offers <span class="bribe-amt">' + pc(b.amt) + '</span></span>' +
       (b.note ? '<span class="bribe-note">\u201c' + esc(b.note) + '\u201d</span>' : '<span class="bribe-note muted">No note</span>') +
-      '<span class="help">Has ' + pc(p.pcash || 0) + (short ? '. Not enough to pay this.' : '') + '</span></div>' +
+      '<span class="help">Has ' + pc(p.pcash || 0) + ' in P-Cash' + (short ? '. Not enough to pay this.' : '') + '</span></div>' +
       '<div class="row"><button class="btn ghost" data-act="declineBribe" data-id="' + esc(b.id) + '">Decline</button><button class="btn primary" data-act="acceptBribe" data-id="' + esc(b.id) + '"' + (short ? ' disabled' : '') + '>Accept</button></div></div>';
   }).join('') : '<p class="lead">No bribes waiting.</p>';
   return '<div class="sheet action" style="--sc:var(--money);width:min(660px,100%)" role="dialog" aria-label="Secret bribes"><div class="act-head"><div><div class="act-spot">Secret bribes</div><div class="act-why">Sent from their phones. Only you see these.</div></div></div>' + rows +
@@ -2608,7 +2608,7 @@ function renderBribeSheet() {
     '<p class="help" style="text-align:center">Only the host can see it. Keep this page open.</p><div class="row center"><button class="btn ghost" data-act="bribeCancel">Take it back</button><button class="btn primary" data-act="bribeHide">Hide</button></div>';
   else {
     const amts = [100, 300, 500].filter(n => n < cash).concat(cash > 0 ? [cash] : []);
-    h = '<h2>Secret bribe</h2><p class="lead">You have <b>' + pc(cash) + '</b>. Only the host sees this.</p>' +
+    h = '<h2>Secret bribe</h2><p class="lead">You have <b>' + pc(cash) + '</b> in P-Cash. Only the host sees this.</p>' +
       '<div class="wagers">' + amts.map((n, i) => '<button class="btn' + (bzBribe.amt === n ? ' primary' : '') + '" data-act="bribePick" data-amt="' + n + '">' + (i === amts.length - 1 ? 'All \u00b7 ' : '') + pc(n) + '</button>').join('') + '</div>' +
       '<label class="field">What\u2019s it for? (optional)<input class="input" id="bz-note" maxlength="80" autocomplete="off" placeholder="A hint, a do-over, a free move\u2026" value="' + esc(bzBribe.note) + '"></label>' +
       '<p class="ferr" id="bz-err" aria-live="polite"></p>' +
@@ -2623,7 +2623,7 @@ A.bribeSend = () => {
   const v = buzzView(), i = $('#bz-note'), err = $('#bz-err');
   if (i) bzBribe.note = i.value.trim().slice(0, 80);
   if (!room || !v.me) { if (err) err.textContent = 'Not connected to the host right now.'; return; }
-  if (!(bzBribe.amt > 0) || bzBribe.amt > (v.me.pcash || 0)) { if (err) err.textContent = 'You only have ' + pc(v.me.pcash || 0) + '. Pick a smaller amount.'; return; }
+  if (!(bzBribe.amt > 0) || bzBribe.amt > (v.me.pcash || 0)) { if (err) err.textContent = 'You only have ' + pc(v.me.pcash || 0) + ' in P-Cash. Pick a smaller amount.'; return; }
   const id = uid() + uid().slice(0, 4);
   bzBribe.sent = { id, amt: bzBribe.amt, status: 'sent' };
   room.presence({ bribe: { id, amt: bzBribe.amt, note: bzBribe.note } }).catch(() => {});
