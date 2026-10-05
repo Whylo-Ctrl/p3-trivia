@@ -294,8 +294,9 @@ textarea.input{resize:vertical;min-height:96px;line-height:1.4}
 .pod-score.down{animation:down 1s}
 @keyframes up{0%{color:var(--good);transform:scale(1.1);text-shadow:0 0 26px var(--good)}}
 @keyframes down{0%{color:var(--bad);transform:scale(.92);text-shadow:0 0 26px var(--bad)}}
-.pod-cash{grid-area:cash;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-top:8px}
-.pod-cash b{color:var(--good);font-family:var(--f-num);font-size:19px;font-weight:400;letter-spacing:.03em;margin-left:4px}
+.pod-cash{grid-area:cash;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:16px;font-weight:800;color:var(--ink-dim);margin-top:10px}
+.pod-cash b{color:var(--good);font-weight:800;margin-left:2px;font-variant-numeric:tabular-nums}
+.pod-cash .mini{font-size:14px;padding:4px 12px}
 .mini:disabled{opacity:.35;cursor:default}
 .pod-adj{grid-area:adj;display:flex;gap:6px;justify-content:center;margin-top:6px}
 .chip{position:absolute;top:12px;right:12px;background:var(--gold);color:var(--on-gold);font-weight:800;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:999px;box-shadow:0 0 12px rgba(255,198,58,.5)}
@@ -463,10 +464,11 @@ input[type=color]{width:46px;height:40px;padding:2px;border:2px solid var(--line
 .btn.bribes-btn{border-color:var(--money);color:var(--good)}
 .bribe-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(0,0,0,.3);border-radius:12px;padding:10px 12px}
 .bribe-what{flex:1 1 220px;display:grid;gap:2px;min-width:0}
-.bribe-amt{font-family:var(--f-num);font-size:24px;color:var(--good);letter-spacing:.02em}
+.bribe-amt{font-weight:800;color:var(--good)}
 .bribe-note{font-style:italic;color:var(--ink);overflow-wrap:anywhere;margin:0}
-.bz-cash{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:linear-gradient(180deg,rgba(19,112,58,.35),rgba(11,69,36,.35));border:2px solid var(--money-deep);border-radius:14px;padding:10px 12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:13px;color:var(--ink-dim)}
-.bz-cash b{font-family:var(--f-num);font-weight:400;font-size:24px;letter-spacing:.02em;color:var(--good);margin-left:6px}
+.bz-cash{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:linear-gradient(180deg,rgba(19,112,58,.35),rgba(11,69,36,.35));border:2px solid var(--money-deep);border-radius:14px;padding:10px 12px;font-weight:800;font-size:18px;color:var(--ink)}
+.bz-cash b{font-weight:800;color:var(--good);margin-left:2px;font-variant-numeric:tabular-nums}
+.bz-cash .btn{font-size:14px}
 .btn.bz-bribe{border-color:var(--money);color:var(--good)}
 .sheet.bz-bribe-sheet{width:min(460px,100%)}
 .bz-bribe-sheet h2{font-family:var(--f-show);font-size:clamp(30px,8vw,40px);color:var(--good);transform:rotate(-2deg);text-shadow:0 3px 0 var(--money-shadow),0 0 24px rgba(61,220,132,.4);text-align:center}
@@ -2000,7 +2002,7 @@ function renderPodiums() {
       '<div class="pod-name">' + esc(p.name) + (room && devicePids().has(p.id) ? '<span class="flag buzz" title="Buzzing in from their own device">Buzzer</span>' : '') + '</div>' +
       '<div class="pod-spot"><i class="dot" style="--pc:' + (SPOTS[p.spot] || SPOTS.money).color + '"></i>on ' + esc((SPOTS[p.spot] || SPOTS.money).name) + flags(p) + '</div>' +
       '<div class="pod-score' + (disp < 0 ? ' neg' : '') + cls + '" data-pid="' + p.id + '">' + fmt(disp) + '</div>' +
-      '<div class="pod-cash"><span>P-Cash <b>' + pc(p.pcash || 0) + '</b></span><button class="mini" data-act="openBribe" data-id="' + p.id + '"' + ((p.pcash || 0) > 0 ? '' : ' disabled') + '>Bribe</button></div>' +
+      '<div class="pod-cash"><span>P-Cash: <b>' + pc(p.pcash || 0) + '</b></span><button class="mini" data-act="openBribe" data-id="' + p.id + '"' + ((p.pcash || 0) > 0 ? '' : ' disabled') + '>Bribe</button></div>' +
       '<div class="pod-adj"><button class="mini" data-act="adj" data-id="' + p.id + '" data-n="-100" aria-label="Take 100 from ' + esc(p.name) + '">−100</button><button class="mini" data-act="adj" data-id="' + p.id + '" data-n="100" aria-label="Give 100 to ' + esc(p.name) + '">+100</button></div>' +
       (g.control === p.id ? '<span class="chip">Picks next</span>' : '') +
       '</article>';
@@ -2567,7 +2569,7 @@ function renderBuzzer() {
       (v.q ? '<p class="bz-q">' + esc(v.q.cat) + '<b>' + esc(String(v.q.v)) + '</b></p>' : '<p class="bz-q">Waiting for the next question</p>') +
       '<button class="bz-btn marquee ' + v.state + '" data-shape="circle" data-inset="-5" data-gap="24" data-bs="8" data-act="buzz"' + (v.state === 'live' ? '' : ' disabled') + ' aria-label="Buzz in">' + esc(v.label) + '</button>' +
       '<p class="bz-sub" aria-live="polite">' + esc(v.sub) + '</p></main>' +
-      '<div class="bz-cash"><span>P-Cash <b>' + pc(cash) + '</b></span><button class="btn bz-bribe" data-act="bribeOpen"' + (cash > 0 || bzBribe.sent ? '' : ' disabled') + '>' + (waiting ? 'Bribe sent\u2026' : 'Secret bribe') + '</button></div>' +
+      '<div class="bz-cash"><span>P-Cash: <b>' + pc(cash) + '</b></span><button class="btn bz-bribe" data-act="bribeOpen"' + (cash > 0 || bzBribe.sent ? '' : ' disabled') + '>' + (waiting ? 'Bribe sent\u2026' : 'Secret bribe') + '</button></div>' +
       '<ol class="bz-scores">' + v.players.slice().sort((a, b) => b.score - a.score).map(p => '<li' + (p.id === v.me.id ? ' class="me"' : '') + '><i class="dot" style="--pc:' + p.color + '"></i><span>' + esc(p.name) + '</span><b class="' + (p.score < 0 ? 'neg' : '') + '">' + fmt(p.score) + '</b></li>').join('') + '</ol>';
   }
   root.innerHTML = '<div class="bz">' + top + body + '</div>';
