@@ -535,6 +535,10 @@ input[type=color]{width:46px;height:40px;padding:2px;border:2px solid var(--line
 .hs-go{animation:menuIn .5s 3.3s both}
 .rules-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .btn.narr-btn{border-color:var(--gold-deep);color:var(--gold-hi)}
+.narr-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.narr-pick{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)}
+.narr-pick .input{width:auto;padding:7px 10px;font-size:14px}
+.narr-who{font-family:var(--f-display);font-size:13px;color:var(--good);min-width:9ch}
 .rules > section{border-radius:14px;padding:10px 12px;margin:-10px -12px;transition:background .3s,box-shadow .3s}
 .rules > section.reading{background:rgba(255,198,58,.08);box-shadow:inset 4px 0 0 var(--gold),0 0 30px rgba(255,198,58,.12)}
 .rules > section.reading h3{color:var(--gold)}
@@ -900,23 +904,45 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopM
 
 /* ---------- narrator: reads the rules out loud with the browser's own voice ---------- */
 let narrating = false, narrSection = -1;
-function pickVoice() {
-  const ss = window.speechSynthesis; if (!ss) return null;
-  const vs = ss.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
-  const prefer = ['Google UK English Male', 'Daniel', 'Microsoft Guy', 'Microsoft Davis', 'Microsoft Christopher', 'Microsoft David', 'Alex', 'Aaron', 'Arthur', 'Google US English'];
-  for (const name of prefer) { const v = vs.find(x => x.name.indexOf(name) >= 0); if (v) return v; }
-  return vs.find(v => /en-US/i.test(v.lang)) || vs[0] || null;
+// Three narrator characters. Each uses the most natural matching voice installed on this computer.
+const NARR_KEY = 'p3trivia.narrator';
+let narrMode = (() => { try { return localStorage.getItem(NARR_KEY) || 'mix'; } catch (e) { return 'mix'; } })();
+const FEMALE = [/(Aria|Jenny|Michelle|Ava|Emma|Ana|Sonia|Libby|Natasha|Clara)\b.*(Natural|Online|Neural)/i, /Google US English/i, /Samantha|Ava|Allison|Susan|Victoria|Karen|Serena|Moira|Tessa|Zira|Hazel/i];
+const MALE = [/(Guy|Christopher|Eric|Roger|Steffan|Ryan|Andrew|Brian|Davis|Tony)\b.*(Natural|Online|Neural)/i, /Google UK English Male/i, /Daniel|Alex|Aaron|Arthur|Fred|Rishi|Oliver|Tom|David|Mark|George/i];
+const CAST = {
+  host: { label: 'Announcer', pitch: 1.0, rate: 1.18, want: [FEMALE, MALE] },
+  sarge: { label: 'Sarge', pitch: 0.62, rate: 1.06, want: [MALE, FEMALE] },
+  wise: { label: 'Wisecracker', pitch: 1.18, rate: 1.32, want: [MALE, FEMALE] }
+};
+const NARR_MODES = [['mix', 'Mix: voices switch'], ['host', 'Announcer'], ['sarge', 'Sarge'], ['wise', 'Wisecracker']];
+function englishVoices() { const ss = window.speechSynthesis; return ss ? ss.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang)) : []; }
+function voiceFor(who, taken) {
+  const vs = englishVoices();
+  if (!vs.length) return null;
+  for (const group of CAST[who].want) for (const re of group) {
+    const pick = vs.find(v => re.test(v.name) && !taken.includes(v)) ;
+    if (pick) return pick;
+  }
+  return vs.find(v => !taken.includes(v)) || vs[0];
+}
+function castVoices() {
+  const taken = [], out = {};
+  ['host', 'sarge', 'wise'].forEach(w => { out[w] = voiceFor(w, taken); if (out[w]) taken.push(out[w]); });
+  return out;
 }
 function rulesNarration() {
   const secs = Number(S.settings.finalSeconds) || 45;
   return [
-    { sec: -1, text: 'Ladies and gentlemen, welcome to P3 Trivia! Here is how the game works.' },
-    { sec: 0, text: 'Everybody starts on the money spot. Pick a square on the board, and your host reads the question. Get it right, and you bank the points. Then you move your token along one of the arrows, and do whatever that spot says. Get it wrong, and those points come right off your score. Whoever got the last one right picks the next square.' },
-    { sec: 1, text: 'Now, the spots. Land on the money spot, pick one, two, or three, and win P-Cash. P-Cash is not points. It is for bribing your host. Attack is a coin flip. Call it right, and you spin the Good Wheel. Call it wrong, and you hand that spin to somebody else. The Good Wheel can give you points, steals, doubles, shields, and more. But watch out! One slice sends you to the Bad Wheel, where every single slice hurts. At Points, place your bet, then roll the die. Four, five, or six, you win. One, two, or three, you lose it. And then, there is China. Only the wheels can send you there. From the Good Wheel, China wipes out your debt, or gives you an extra life. From the Bad Wheel, China takes everything you have got. Stay in China, and you get to open a mystery box. It could be good. It could be very, very bad.' },
-    { sec: 3, text: 'When the board is cleared, the top two players face off in Final Jeopardy. Place your secret bets. Then it is best two out of three. Spin for a category, and name as many as you can in ' + secs + ' seconds. Win the final, and you add your bet. Lose it, and you lose it. The highest score takes the crown.' },
-    { sec: -1, text: 'Good luck, everybody. Let us play P3 Trivia!' }
+    { who: 'host', sec: -1, text: 'Welcome to P3 Trivia! Here’s the deal.' },
+    { who: 'host', sec: 0, text: 'Everyone starts on the money spot. Pick a square and answer the question. Get it right, you bank the points and move along an arrow. Get it wrong, you lose them. Last one right picks next.' },
+    { who: 'wise', sec: 1, text: 'The money spot. Pick one, two, or three for P-Cash. It’s not points, it’s bribe money. For bribing the host. We all know you want to.' },
+    { who: 'sarge', sec: 1, text: 'Attack. Call the coin. Win, you spin the Good Wheel. Lose, you hand that spin to someone else. One slice sends you to the Bad Wheel. Every slice on that wheel hurts.' },
+    { who: 'wise', sec: 1, text: 'Points. Place a bet, roll the die. Four to six, you win. One to three, you don’t. And China? Only the wheels send you there. Good Wheel China saves you. Bad Wheel China takes everything. Stay there and open a mystery box. Good luck with that.' },
+    { who: 'sarge', sec: 3, text: 'Final Jeopardy. Top two players. Secret bets. Best two out of three. Name as many as you can in ' + secs + ' seconds. Winner adds the bet. Loser loses it.' },
+    { who: 'host', sec: -1, text: 'Highest score wins. Let’s play!' }
   ];
 }
+let narrWho = '';
 function highlightRules(sec) {
   narrSection = sec;
   document.querySelectorAll('.sheet.rules > section').forEach((el, i) => {
@@ -926,27 +952,37 @@ function highlightRules(sec) {
   });
   const b = $('#narrBtn');
   if (b) b.innerHTML = (narrating ? ICON_SND_OFF + 'Stop narrator' : ICON_SND_ON + 'Play narrator');
+  const w = $('#narrWho');
+  if (w) w.textContent = narrating && narrWho ? 'Now: ' + narrWho : '';
+}
+function narratorBar() {
+  return '<div class="narr-bar"><button class="btn narr-btn" id="narrBtn" data-act="narrToggle">' + (narrating ? ICON_SND_OFF + 'Stop narrator' : ICON_SND_ON + 'Play narrator') + '</button>' +
+    '<label class="narr-pick"><span>Voice</span><select class="input" id="narrVoice">' + NARR_MODES.map(([k, l]) => '<option value="' + k + '"' + (k === narrMode ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label>' +
+    '<span class="narr-who" id="narrWho" aria-live="polite">' + (narrating && narrWho ? 'Now: ' + esc(narrWho) : '') + '</span></div>';
 }
 function narrateRules() {
   const ss = window.speechSynthesis;
   if (!ss || typeof SpeechSynthesisUtterance === 'undefined') return;
   ss.cancel();
-  const voice = pickVoice(), parts = rulesNarration(), all = [];
-  parts.forEach(pt => (pt.text.match(/[^.!?]+[.!?]+/g) || [pt.text]).forEach(t => all.push({ sec: pt.sec, text: t.trim() })));
-  narrating = true; duckMusic(0.3); highlightRules(-1);
+  const voices = castVoices(), all = [];
+  rulesNarration().forEach(pt => {
+    const who = narrMode === 'mix' ? pt.who : narrMode;
+    (pt.text.match(/[^.!?]+[.!?]+/g) || [pt.text]).forEach(t => all.push({ who, sec: pt.sec, text: t.trim() }));
+  });
+  narrating = true; duckMusic(0.3); narrWho = ''; highlightRules(-1);
   all.forEach((line, i) => {
-    const u = new SpeechSynthesisUtterance(line.text);
-    if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
-    u.rate = 1.02; u.pitch = 0.82; u.volume = 1;
-    u.onstart = () => { if (narrating) highlightRules(line.sec); };
-    if (i === all.length - 1) u.onend = () => { narrating = false; duckMusic(1); highlightRules(-1); };
+    const c = CAST[line.who], v = voices[line.who], u = new SpeechSynthesisUtterance(line.text);
+    if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'en-US';
+    u.rate = c.rate; u.pitch = c.pitch; u.volume = 1;
+    u.onstart = () => { if (narrating) { narrWho = c.label; highlightRules(line.sec); } };
+    if (i === all.length - 1) u.onend = () => { narrating = false; narrWho = ''; duckMusic(1); highlightRules(-1); };
     ss.speak(u);
   });
 }
 function stopNarration() {
   if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) { /* nothing to stop */ } }
   if (narrating) duckMusic(1);
-  narrating = false; highlightRules(-1);
+  narrating = false; narrWho = ''; highlightRules(-1);
 }
 if (window.speechSynthesis) { try { window.speechSynthesis.getVoices(); window.speechSynthesis.addEventListener('voiceschanged', () => {}); } catch (e) { /* voices load later */ } }
 const ICON_MUSIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
@@ -2463,7 +2499,7 @@ function ovSetup() {
 }
 function ovRules() {
   const w = wagerChoices().map(fmt).join(', ');
-  return '<div class="sheet rules" role="dialog" aria-label="Rules"><div class="rules-head"><h2>How P3 Trivia works</h2><button class="btn narr-btn" id="narrBtn" data-act="narrToggle">' + (narrating ? ICON_SND_OFF + 'Stop narrator' : ICON_SND_ON + 'Play narrator') + '</button></div>' +
+  return '<div class="sheet rules" role="dialog" aria-label="Rules"><div class="rules-head"><h2>How P3 Trivia works</h2>' + narratorBar() + '</div>' +
     '<section><h3>A turn</h3><ul>' +
       '<li>Everyone starts on <b>$$$</b>.</li>' +
       '<li>Pick a square and read the question. Mark who answered.</li>' +
@@ -2534,6 +2570,12 @@ document.addEventListener('change', e => {
     if (v.length) { S.board.values = v; S.board.categories.forEach(c => { while (c.clues.length < v.length) c.clues.push(clue()); }); }
     t.value = S.board.values.join(', ');
     save(); renderBoard(); return;
+  }
+  if (t.id === 'narrVoice') {
+    narrMode = NARR_MODES.some(m => m[0] === t.value) ? t.value : 'mix';
+    try { localStorage.setItem(NARR_KEY, narrMode); } catch (e) { /* storage blocked: setting lasts this visit */ }
+    if (soundOn) narrateRules();
+    return;
   }
   if (t.id === 'ce-used') { if (t.checked) S.game.used[t.dataset.cid] = true; else delete S.game.used[t.dataset.cid]; save(); renderBoard(); return; }
   if (t.id === 'st-money') { const v = nums(t.value); S.settings.moneyPrizes = v.length ? v : DEFAULT_SETTINGS.moneyPrizes.slice(); t.value = S.settings.moneyPrizes.join(', '); save(); return; }
