@@ -2046,6 +2046,8 @@ A.buzz = () => {
    Every open page keeps one node at games/<code>/peers/<device> with its "presence" plus a server
    timestamp. That mirrors the room presence above, so the buzz logic is the same for both. */
 const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+// The host's own database (project p3-trivia), so the website connects with no setup
+const DEFAULT_DB_URL = 'https://p3-trivia-default-rtdb.firebaseio.com';
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
 let transport = IN_CLAUDE ? 'claude' : 'firebase';
 let fbApp = null, fbStatus = '';
@@ -2167,7 +2169,10 @@ async function connectLive() {
   const c = window.claude;
   if (!IN_CLAUDE) {
     if (mode === 'buzzer' && JOIN.code && JOIN.db) { if (validDbUrl(JOIN.db)) { await connectFirebase(JOIN.db, JOIN.code); return; } fbStatus = 'This buzzer link is broken. Ask the host to send it again.'; }
-    else if (mode === 'host' && S.settings.dbUrl && validDbUrl(S.settings.dbUrl)) { await connectFirebase(S.settings.dbUrl, roomCode()); return; }
+    else if (mode === 'host') {
+      if (!S.settings.dbUrl) { S.settings.dbUrl = DEFAULT_DB_URL; save(); }
+      if (validDbUrl(S.settings.dbUrl)) { await connectFirebase(S.settings.dbUrl, roomCode()); return; }
+    }
     roomReady = true; liveRender(); return;
   }
   if (mode === 'host') {
