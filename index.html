@@ -533,6 +533,11 @@ input[type=color]{width:46px;height:40px;padding:2px;border:2px solid var(--line
 .hs-name .hs-text{display:block;font-family:var(--f-show);font-size:clamp(44px,9vw,108px);line-height:1.12;color:var(--gold);transform:rotate(-4deg);white-space:nowrap;text-shadow:0 3px 0 var(--gold-deep),0 7px 0 #8c1426,0 11px 0 #4a0812,0 0 54px rgba(255,190,60,.65)}
 @keyframes nameIn{from{transform:scale(3) rotate(-8deg);opacity:0}}
 .hs-go{animation:menuIn .5s 3.3s both}
+.rules-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.btn.narr-btn{border-color:var(--gold-deep);color:var(--gold-hi)}
+.rules > section{border-radius:14px;padding:10px 12px;margin:-10px -12px;transition:background .3s,box-shadow .3s}
+.rules > section.reading{background:rgba(255,198,58,.08);box-shadow:inset 4px 0 0 var(--gold),0 0 30px rgba(255,198,58,.12)}
+.rules > section.reading h3{color:var(--gold)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}.bulb,.spot .sb{animation:none!important;opacity:1}.beam{animation:none!important}.fx-stamp,.fx-flash,.fx-delta{display:none}.hs-beam{display:none}}
 @media (max-width:520px){.pod-name{padding-right:0}.chip{position:static;grid-column:1/-1;justify-self:start;margin-top:4px}.sign{padding:11px 18px 13px 12px}.sign-word{font-size:30px}.logo-p3{width:40px;height:40px;font-size:16px}.board-frame{padding:14px;border-radius:20px}}
 </style></head><body>
@@ -645,7 +650,7 @@ function tone(f, dur, o) {
   const c = audio(); if (!c) return;
   o = o || {};
   try {
-    const t0 = c.currentTime + (o.at || 0), v = o.vol == null ? 0.2 : o.vol, atk = o.attack || 0.006;
+    const t0 = o.t != null ? o.t : c.currentTime + (o.at || 0), v = o.vol == null ? 0.2 : o.vol, atk = o.attack || 0.006;
     const osc = c.createOscillator(), g = c.createGain();
     osc.type = o.type || 'sine';
     osc.frequency.setValueAtTime(f, t0);
@@ -656,7 +661,7 @@ function tone(f, dur, o) {
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     let out = osc;
     if (o.lp) { const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = o.lp; osc.connect(fl); out = fl; }
-    out.connect(g); g.connect(master);
+    out.connect(g); g.connect(o.dest || master);
     if (o.vib) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = o.vib; lg.gain.value = o.vibDepth || 5; l.connect(lg); lg.connect(osc.frequency); l.start(t0); l.stop(t0 + dur + 0.05); }
     osc.start(t0); osc.stop(t0 + dur + 0.05);
   } catch (e) { /* sound is optional */ }
@@ -666,14 +671,14 @@ function noise(dur, o) {
   o = o || {};
   try {
     if (!noiseBuf) { noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-    const t0 = c.currentTime + (o.at || 0), v = o.vol == null ? 0.2 : o.vol;
+    const t0 = o.t != null ? o.t : c.currentTime + (o.at || 0), v = o.vol == null ? 0.2 : o.vol;
     const src = c.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
     const fl = c.createBiquadFilter(); fl.type = o.ft || 'bandpass'; fl.frequency.setValueAtTime(o.f || 1000, t0);
     if (o.fto) fl.frequency.exponentialRampToValueAtTime(o.fto, t0 + dur);
     fl.Q.value = o.q || 1;
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(v, t0 + (o.attack || 0.004)); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    src.connect(fl); fl.connect(g); g.connect(master);
+    src.connect(fl); fl.connect(g); g.connect(o.dest || master);
     src.start(t0, Math.random() * 0.5); src.stop(t0 + dur + 0.05);
   } catch (e) { /* sound is optional */ }
 }
@@ -841,6 +846,111 @@ function spinWatch(n, dur) {
   };
   requestAnimationFrame(step);
 }
+
+
+/* ---------- background music: an original lounge-style game-show loop, synthesized live and kept quiet ---------- */
+const MUSIC_KEY = 'p3trivia.music', MUSIC_VOL = 0.09, BPM = 116, STEP = 60 / BPM / 4;
+let musicOn = (() => { try { return localStorage.getItem(MUSIC_KEY) !== 'off'; } catch (e) { return true; } })();
+let musicGain = null, musicTimer = null, musicNext = 0, musicStep = 0, musicDuck = 1;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+// eight bars: Cmaj7 Am7 Dm7 G7 | Em7 A7 Dm7 G9
+const PROG = [
+  { r: 36, ch: [64, 67, 71, 74] }, { r: 33, ch: [60, 64, 67, 72] }, { r: 38, ch: [65, 69, 72, 76] }, { r: 31, ch: [65, 67, 71, 74] },
+  { r: 40, ch: [62, 67, 71, 74] }, { r: 33, ch: [61, 64, 67, 73] }, { r: 38, ch: [65, 69, 72, 77] }, { r: 31, ch: [65, 69, 71, 74] }
+];
+const HOOK = [[3, 2, 1, 2], [2, 3, 2, 0], [3, 1, 2, 3], [1, 2, 3, 2]];
+function musicStepAt(step, t) {
+  const bar = Math.floor(step / 16) % PROG.length, s = step % 16, p = PROG[bar], next = PROG[(bar + 1) % PROG.length], d = musicGain;
+  const swing = s % 4 === 2 ? STEP * 0.33 : 0, at = t + swing;
+  // drums: soft kick, brushed snare, swung hats
+  if (s === 0 || s === 8 || (s === 10 && bar % 2)) tone(110, 0.22, { t: at, to: 45, slide: 0.12, vol: 0.5, dest: d });
+  if (s === 4 || s === 12) noise(0.14, { t: at, f: 1800, q: 0.7, vol: 0.12, dest: d });
+  if (s % 2 === 0) noise(s === 14 ? 0.16 : 0.04, { t: at, ft: 'highpass', f: 7000, vol: s % 4 === 2 ? 0.07 : 0.035, dest: d });
+  // walking bass
+  const bassNotes = { 0: p.r, 4: p.r + 7, 8: p.r + 12, 12: next.r + (next.r > p.r ? -1 : 1) };
+  if (bassNotes[s] != null) tone(mtof(bassNotes[s]), 0.32, { t: at, type: 'triangle', lp: 700, vol: 0.32, attack: 0.01, dest: d });
+  // electric-piano chord stabs
+  if (s === 4 || s === 11) p.ch.forEach(n => { tone(mtof(n), 0.4, { t: at, vol: 0.05, attack: 0.008, dest: d }); tone(mtof(n) * 2, 0.18, { t: at, type: 'triangle', vol: 0.012, dest: d }); });
+  // vibraphone hook every other bar
+  if (bar % 2 === 0) { const hk = HOOK[(bar / 2) % HOOK.length], pos = [0, 3, 6, 10].indexOf(s); if (pos >= 0) tone(mtof(p.ch[hk[pos]] + 12), 0.7, { t: at, vol: 0.05, attack: 0.005, vib: 5.5, vibDepth: 2, dest: d }); }
+}
+function musicTick() {
+  if (!actx || !musicGain) return;
+  while (musicNext < actx.currentTime + 0.3) { musicStepAt(musicStep, musicNext); musicNext += STEP; musicStep = (musicStep + 1) % (16 * PROG.length); }
+}
+function startMusic() {
+  if (!musicOn || !soundOn || musicTimer || mode === 'buzzer' || document.hidden) return;
+  const c = audio();
+  if (!c) return;
+  if (!musicGain) { musicGain = c.createGain(); musicGain.gain.value = 0; musicGain.connect(master); }
+  musicGain.gain.cancelScheduledValues(c.currentTime);
+  musicGain.gain.setTargetAtTime(MUSIC_VOL * musicDuck, c.currentTime, 0.8);
+  musicNext = c.currentTime + 0.12;
+  musicTimer = setInterval(musicTick, 60);
+  musicTick();
+}
+function stopMusic() {
+  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+  if (musicGain && actx) musicGain.gain.setTargetAtTime(0, actx.currentTime, 0.15);
+}
+function duckMusic(f) { musicDuck = f; if (musicGain && actx && musicTimer) musicGain.gain.setTargetAtTime(MUSIC_VOL * f, actx.currentTime, 0.3); }
+// Browsers only allow sound after the first click or key press
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, () => startMusic(), true));
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopMusic(); else startMusic(); });
+
+/* ---------- narrator: reads the rules out loud with the browser's own voice ---------- */
+let narrating = false, narrSection = -1;
+function pickVoice() {
+  const ss = window.speechSynthesis; if (!ss) return null;
+  const vs = ss.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
+  const prefer = ['Google UK English Male', 'Daniel', 'Microsoft Guy', 'Microsoft Davis', 'Microsoft Christopher', 'Microsoft David', 'Alex', 'Aaron', 'Arthur', 'Google US English'];
+  for (const name of prefer) { const v = vs.find(x => x.name.indexOf(name) >= 0); if (v) return v; }
+  return vs.find(v => /en-US/i.test(v.lang)) || vs[0] || null;
+}
+function rulesNarration() {
+  const secs = Number(S.settings.finalSeconds) || 45;
+  return [
+    { sec: -1, text: 'Ladies and gentlemen, welcome to P3 Trivia! Here is how the game works.' },
+    { sec: 0, text: 'Everybody starts on the money spot. Pick a square on the board, and your host reads the question. Get it right, and you bank the points. Then you move your token along one of the arrows, and do whatever that spot says. Get it wrong, and those points come right off your score. Whoever got the last one right picks the next square.' },
+    { sec: 1, text: 'Now, the spots. Land on the money spot, pick one, two, or three, and win P-Cash. P-Cash is not points. It is for bribing your host. Attack is a coin flip. Call it right, and you spin the Good Wheel. Call it wrong, and you hand that spin to somebody else. The Good Wheel can give you points, steals, doubles, shields, and more. But watch out! One slice sends you to the Bad Wheel, where every single slice hurts. At Points, place your bet, then roll the die. Four, five, or six, you win. One, two, or three, you lose it. And then, there is China. Only the wheels can send you there. From the Good Wheel, China wipes out your debt, or gives you an extra life. From the Bad Wheel, China takes everything you have got. Stay in China, and you get to open a mystery box. It could be good. It could be very, very bad.' },
+    { sec: 3, text: 'When the board is cleared, the top two players face off in Final Jeopardy. Place your secret bets. Then it is best two out of three. Spin for a category, and name as many as you can in ' + secs + ' seconds. Win the final, and you add your bet. Lose it, and you lose it. The highest score takes the crown.' },
+    { sec: -1, text: 'Good luck, everybody. Let us play P3 Trivia!' }
+  ];
+}
+function highlightRules(sec) {
+  narrSection = sec;
+  document.querySelectorAll('.sheet.rules > section').forEach((el, i) => {
+    const on = i === sec;
+    el.classList.toggle('reading', on);
+    if (on && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+  });
+  const b = $('#narrBtn');
+  if (b) b.innerHTML = (narrating ? ICON_SND_OFF + 'Stop narrator' : ICON_SND_ON + 'Play narrator');
+}
+function narrateRules() {
+  const ss = window.speechSynthesis;
+  if (!ss || typeof SpeechSynthesisUtterance === 'undefined') return;
+  ss.cancel();
+  const voice = pickVoice(), parts = rulesNarration(), all = [];
+  parts.forEach(pt => (pt.text.match(/[^.!?]+[.!?]+/g) || [pt.text]).forEach(t => all.push({ sec: pt.sec, text: t.trim() })));
+  narrating = true; duckMusic(0.3); highlightRules(-1);
+  all.forEach((line, i) => {
+    const u = new SpeechSynthesisUtterance(line.text);
+    if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = 'en-US';
+    u.rate = 1.02; u.pitch = 0.82; u.volume = 1;
+    u.onstart = () => { if (narrating) highlightRules(line.sec); };
+    if (i === all.length - 1) u.onend = () => { narrating = false; duckMusic(1); highlightRules(-1); };
+    ss.speak(u);
+  });
+}
+function stopNarration() {
+  if (window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch (e) { /* nothing to stop */ } }
+  if (narrating) duckMusic(1);
+  narrating = false; highlightRules(-1);
+}
+if (window.speechSynthesis) { try { window.speechSynthesis.getVoices(); window.speechSynthesis.addEventListener('voiceschanged', () => {}); } catch (e) { /* voices load later */ } }
+const ICON_MUSIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
+const musBtn = () => '<button class="btn snd' + (musicOn && soundOn ? '' : ' off') + '" data-act="toggleMusic" aria-pressed="' + musicOn + '" title="Background music">' + ICON_MUSIC + (musicOn ? 'Music' : 'Music off') + '</button>';
 
 /* ---------- marquee bulbs around any .marquee element ---------- */
 let bulbRO = null;
@@ -1508,9 +1618,10 @@ A.done = () => act(finish);
 A.adj = d => { const p = player(d.id); if (!p) return; const n = +d.n; act(() => { p.score += n; log('Host adjusted ' + p.name + ': ' + signed(n), p.id); }); SFX.click(); };
 A.undo = () => undo();
 A.toggleEdit = () => { S.ui.editing = !S.ui.editing; render(); };
-A.openRules = () => { S.ui.overlay = { type: 'rules' }; render(); };
+A.openRules = () => { S.ui.overlay = { type: 'rules' }; render(); if (soundOn) narrateRules(); };
+A.narrToggle = () => { if (narrating) stopNarration(); else narrateRules(); };
 A.openSetup = () => { S.ui.overlay = { type: 'setup' }; render(); };
-A.closeOverlay = () => { S.ui.overlay = null; save(); render(); };
+A.closeOverlay = () => { if (S.ui.overlay && S.ui.overlay.type === 'rules') stopNarration(); S.ui.overlay = null; save(); render(); };
 A.editClue = d => { S.ui.overlay = { type: 'clueEdit', cid: d.cid }; render(); };
 A.clearClue = d => { const f = findClue(d.cid); if (!f) return; f.clue.q = ''; f.clue.a = ''; f.clue.starter = false; save(); render(); };
 A.addCol = () => { S.board.categories.push({ id: uid(), name: '', clues: S.board.values.map(() => clue()) }); save(); render(); };
@@ -1906,7 +2017,7 @@ function renderHeader() {
   $('#boardTitle').textContent = S.board.title || '';
   const ed = S.ui.editing;
   const nb = pendingBribes().length;
-  $('#tools').innerHTML = '<button class="btn menu-btn" data-act="toTitle" title="Back to the title screen">Menu</button>' + sndBtn(false) +
+  $('#tools').innerHTML = '<button class="btn menu-btn" data-act="toTitle" title="Back to the title screen">Menu</button>' + sndBtn(false) + musBtn() +
     (nb ? '<button class="btn bribes-btn" data-act="openBribes" title="Secret bribes sent from phones">Bribes \u00b7 ' + nb + '</button>' : '') +
     '<button class="btn" data-act="undo"' + (hist.length ? '' : ' disabled') + ' title="Reverse the last step">Undo</button>' +
     '<button class="btn" data-act="openRules">Rules</button>' +
@@ -2116,6 +2227,7 @@ function renderOverlay() {
   lastOvKey = key;
   if (h) bulbify(o);
   if (sh && zoomFrom && ph === 'clue' && !u) zoomIn(sh, zoomFrom);
+  if (u && u.type === 'rules' && narrSection >= 0) highlightRules(narrSection);
   zoomFrom = null;
   updateBuzzPanel();
 }
@@ -2351,7 +2463,7 @@ function ovSetup() {
 }
 function ovRules() {
   const w = wagerChoices().map(fmt).join(', ');
-  return '<div class="sheet rules" role="dialog" aria-label="Rules"><h2>How P3 Trivia works</h2>' +
+  return '<div class="sheet rules" role="dialog" aria-label="Rules"><div class="rules-head"><h2>How P3 Trivia works</h2><button class="btn narr-btn" id="narrBtn" data-act="narrToggle">' + (narrating ? ICON_SND_OFF + 'Stop narrator' : ICON_SND_ON + 'Play narrator') + '</button></div>' +
     '<section><h3>A turn</h3><ul>' +
       '<li>Everyone starts on <b>$$$</b>.</li>' +
       '<li>Pick a square and read the question. Mark who answered.</li>' +
@@ -2727,10 +2839,16 @@ A.bribeCancel = () => {
   renderBribeSheet(); renderBuzzer();
 };
 A.bribeClose = A.bribeCancel;
+A.toggleMusic = () => {
+  musicOn = !musicOn;
+  try { localStorage.setItem(MUSIC_KEY, musicOn ? 'on' : 'off'); } catch (e) { /* storage blocked: setting lasts this visit */ }
+  if (musicOn) startMusic(); else stopMusic();
+  renderHeader(); if (screen === 'title') renderTitle();
+};
 A.toggleSound = () => {
   soundOn = !soundOn;
   try { localStorage.setItem(SND_KEY, soundOn ? 'on' : 'off'); } catch (e) { /* storage blocked: setting lasts this visit */ }
-  if (soundOn) SFX.pick();
+  if (soundOn) { SFX.pick(); startMusic(); } else { stopMusic(); stopNarration(); }
   if (mode === 'buzzer') renderBuzzer(); else { renderHeader(); if (screen === 'title') renderTitle(); }
 };
 A.pickMe = d => { setMyPid(d.id); myBuzzRound = -1; SFX.pick(); if (room) room.presence({ role: 'player', pid: d.id, buzz: null }).catch(() => {}); renderBuzzer(); };
@@ -2920,7 +3038,8 @@ function titleHtml(still) {
     b('', 'openSetup', 'Options') +
     b('', 'openRules', 'How to Play') +
     (canBuzz ? b('', 'openBuzzers', 'Phone Buzzers <small id="tsBuzzN">' + buzzerCount() + ' in</small>') : '') +
-    b('', 'toggleSound', 'Sound: ' + (soundOn ? 'On' : 'Off'));
+    b('', 'toggleSound', 'Sound: ' + (soundOn ? 'On' : 'Off')) +
+    b('', 'toggleMusic', 'Music: ' + (musicOn ? 'On' : 'Off'));
   const sub = String(S.board.title || '').replace(/^\s*p3\s*trivia\s*/i, '').trim();
   return '<div class="ts-inner' + (still ? ' still' : '') + '">' +
     '<p class="ts-presents">Whylo TV Presents\u2026</p>' +
@@ -2951,8 +3070,9 @@ function hostHtml() {
 function hostSequence() {
   hostTimers.forEach(clearTimeout); hostTimers = [];
   const at = (ms, fn) => hostTimers.push(setTimeout(fn, reduced ? 0 : ms));
-  SFX.drumroll(1.6);
+  SFX.drumroll(1.6); duckMusic(0.25);
   at(1650, () => { SFX.hit(); SFX.powerup(); flash('gold'); });
+  at(7000, () => duckMusic(1));
   at(2450, () => { SFX.fanfare(); flash('gold'); cannons(110); });
   at(2750, () => SFX.applause(4.5));
   at(3700, () => cannons(70));
@@ -2973,7 +3093,7 @@ function renderTitle() {
 }
 A.titleStart = () => { if (hasProgress()) resetGame(); setScreen('host'); };
 A.titleContinue = () => { SFX.pick(); setScreen('game'); };
-A.hostDone = () => { setScreen('game'); SFX.board(); };
+A.hostDone = () => { duckMusic(1); setScreen('game'); SFX.board(); };
 A.toTitle = () => { S.ui.overlay = null; save(); renderOverlay(); setScreen('title'); SFX.pick(); };
 
 /* ---------- boot ---------- */
