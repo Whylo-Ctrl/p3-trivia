@@ -481,9 +481,9 @@ function defaultFinal() { return { cat: 'U.S. Landmarks', q: 'This city is home 
 function defaultBoard() {
   return {
     title: 'P3 Trivia V2',
-    values: [100, 200, 300, 400, 500],
+    values: [100, 200, 400, 800, 1000],
     final: defaultFinal(),
-    seeded: SEEDS.map(x => x.id),
+    seeded: SEEDS.map(x => x.id).concat(['values-100-1000']),
     categories: [
       { id: uid(), name: 'Gotcha!', clues: ['c1-100-leatherface', 'c1-200-ice', 'c1-300-creeper', 'c1-400-rhydon', 'c1-500-cake'].map(seedClue) },
       { id: uid(), name: 'G.O.A.T.s', clues: [seedClue('goats-100-lincoln'), seedClue('goats-200-goku'), seedClue('goats-300-depp'),
@@ -546,6 +546,11 @@ function normBoard(b) {
   const f = b.final && typeof b.final === 'object' ? b.final : defaultFinal();
   out.final = { cat: String(f.cat || ''), q: String(f.q || ''), a: String(f.a || '') };
   out.seeded = Array.isArray(b.seeded) ? b.seeded.map(String) : [];
+  // One-time switch from the old 100-500 board to 100/200/400/800/1000
+  if (!out.seeded.includes('values-100-1000')) {
+    if (out.values.join(',') === '100,200,300,400,500') out.values = [100, 200, 400, 800, 1000];
+    out.seeded.push('values-100-1000');
+  }
   MOVES.forEach(mv => {
     if (out.seeded.includes(mv.id)) return;
     const c = out.categories[mv.ci], a = c && c.clues[mv.from], z = c && c.clues[mv.to];
