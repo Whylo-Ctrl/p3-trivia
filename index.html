@@ -542,6 +542,17 @@ input[type=color]{width:46px;height:40px;padding:2px;border:2px solid var(--line
 .rules > section{border-radius:14px;padding:10px 12px;margin:-10px -12px;transition:background .3s,box-shadow .3s}
 .rules > section.reading{background:rgba(255,198,58,.08);box-shadow:inset 4px 0 0 var(--gold),0 0 30px rgba(255,198,58,.12)}
 .rules > section.reading h3{color:var(--gold)}
+.phone-wait{margin:0;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;color:var(--good);font-size:15px}
+.phone-wait .dot{background:var(--good);animation:pulse 1.1s ease-in-out infinite}
+.bz-coins{display:flex;justify-content:center;gap:18px;flex-wrap:wrap}
+.bz-coin{width:min(40vw,170px);aspect-ratio:1;max-width:100%;border-radius:50%;border:0;display:grid;place-items:center;font-family:var(--f-display);font-size:clamp(20px,6vw,28px);cursor:pointer;touch-action:manipulation;transition:transform .08s}
+.bz-coin:active{transform:scale(.94)}
+.bz-coin.heads{background:radial-gradient(circle at 35% 30%,var(--coin-hi),var(--coin-mid) 55%,var(--coin-lo));color:var(--on-gold);box-shadow:inset 0 0 0 10px rgba(156,108,8,.55),0 10px 0 #5a3d05,0 0 40px rgba(255,198,58,.4)}
+.bz-coin.tails{background:radial-gradient(circle at 35% 30%,var(--silver-hi),var(--silver-mid) 55%,var(--silver-lo));color:var(--stage);box-shadow:inset 0 0 0 10px rgba(125,133,159,.55),0 10px 0 #3e4458,0 0 40px rgba(255,255,255,.25)}
+.bz-coin.picked{width:min(46vw,190px);cursor:default;animation:pop .4s cubic-bezier(.3,1.6,.5,1)}
+.sheet.bz-wager-sheet{width:min(460px,100%)}
+.bz-wager-sheet h2{font-family:var(--f-show);font-size:clamp(30px,8vw,42px);color:var(--gold);text-align:center;transform:rotate(-2deg);text-shadow:0 3px 0 #8c1426,0 0 24px rgba(255,190,60,.45)}
+.bz-wager-sheet .wagers .btn{font-size:20px;padding:8px 14px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}.bulb,.spot .sb{animation:none!important;opacity:1}.beam{animation:none!important}.fx-stamp,.fx-flash,.fx-delta{display:none}.hs-beam{display:none}}
 @media (max-width:520px){.pod-name{padding-right:0}.chip{position:static;grid-column:1/-1;justify-self:start;margin-top:4px}.sign{padding:11px 18px 13px 12px}.sign-word{font-size:30px}.logo-p3{width:40px;height:40px;font-size:16px}.board-frame{padding:14px;border-radius:20px}}
 </style></head><body>
@@ -1320,7 +1331,7 @@ function enterSpot(p, spot) {
   const g = S.game;
   p.spot = spot;
   if (spot === 'money') { g.phase = 'money'; g.pending = { p: p.id, prizes: pickPrizes(), picked: null }; }
-  else if (spot === 'attack') { g.phase = 'attack'; g.pending = { p: p.id, call: null, result: null, rot: 0 }; }
+  else if (spot === 'attack') { g.phase = 'attack'; g.pending = { p: p.id, call: null, result: null, rot: 0, askId: uid() }; }
   else if (spot === 'wheel') { g.phase = 'wheel'; g.pending = { p: p.id, why: 'Landed on the Good Wheel', result: null, rot: 0 }; }
   else if (spot === 'points') { g.phase = 'points'; g.pending = { p: p.id, wager: null, allIn: false, roll: null }; }
   else if (spot === 'china') applyChina(p, 'good');
@@ -1814,7 +1825,7 @@ A.cancelFinal = () => { stopClock(); act(finish); };
 A.toWagers = () => {
   const pd = S.game.pending;
   if (pd.ids.length !== 2) return;
-  act(() => { pd.step = 'wager'; log('Final Jeopardy: ' + pd.ids.map(id => player(id).name).join(' vs ')); });
+  act(() => { pd.step = 'wager'; pd.askId = uid(); log('Final Jeopardy: ' + pd.ids.map(id => player(id).name).join(' vs ')); });
   SFX.hit();
 };
 A.lockWager = d => {
@@ -1998,12 +2009,13 @@ function ovFinal() {
       '<div class="row center"><button class="btn ghost" data-act="cancelFinal">Not yet</button><button class="btn primary big" data-act="toWagers"' + (pd.ids.length === 2 ? '' : ' disabled') + '>Take bets</button></div>';
   } else if (pd.step === 'wager') {
     const all = fs.every(p => pd.wagers[p.id] != null);
-    body = '<p class="lead">Each player tells you their bet in secret. Bet up to your score. At 0 or below, you can bet up to 1,500.</p>' +
+    const phones = room ? devicePids() : new Set();
+    body = '<p class="lead">' + (fs.some(p => phones.has(p.id)) ? 'Finalists, place your secret bet on your phone.' : 'Each player tells you their bet in secret.') + ' Bet up to your score. At 0 or below, you can bet up to 1,500.</p>' +
       '<div class="finalists">' + fs.map(p => {
         const max = maxWager(p), locked = pd.wagers[p.id] != null;
         return card(p, scoreTag(p) + (locked
           ? '<span class="flag life" style="font-size:12px;padding:4px 10px">Bet locked</span><button class="mini" data-act="unlockWager" data-id="' + p.id + '">Change</button>'
-          : '<div class="fw-row"><input class="input" type="password" inputmode="numeric" autocomplete="off" id="fw-' + p.id + '" placeholder="0 to ' + fmt(max) + '" aria-label="' + esc(p.name) + ' bet"><button class="btn primary" data-act="lockWager" data-id="' + p.id + '">Lock</button></div><p class="ferr" id="fe-' + p.id + '" aria-live="polite"></p>'));
+          : (phones.has(p.id) ? '<p class="phone-wait"><i class="dot"></i>Betting on their phone\u2026</p><p class="help" style="margin:0">Or type it here:</p>' : '') + '<div class="fw-row"><input class="input" type="password" inputmode="numeric" autocomplete="off" id="fw-' + p.id + '" placeholder="0 to ' + fmt(max) + '" aria-label="' + esc(p.name) + ' bet"><button class="btn primary" data-act="lockWager" data-id="' + p.id + '">Lock</button></div><p class="ferr" id="fe-' + p.id + '" aria-live="polite"></p>'));
       }).join('') + '</div>' +
       '<div class="row center"><button class="btn primary big" data-act="newRound"' + (all ? '' : ' disabled') + '>Start round 1</button></div>';
   } else if (pd.step === 'spin') {
@@ -2369,7 +2381,9 @@ function ovAttack() {
   const coin = '<div class="coin-stage"><div class="coin-lift"><div class="coin" style="transform:rotateY(' + (pd.rot || 0) + 'deg)"><div class="face heads">HEADS</div><div class="face tails">TAILS</div></div></div></div>';
   let body;
   if (!pd.call) {
-    body = '<p class="lead" id="attackLead">Call it in the air, ' + esc(p.name) + '. Win and you spin the Good Wheel. Lose and you give the spin away.</p>' + coin +
+    const onPhone = room && devicePids().has(p.id);
+    body = '<p class="lead" id="attackLead">' + (onPhone ? esc(p.name) + ', call it on your phone! ' : 'Call it in the air, ' + esc(p.name) + '. ') + 'Win and you spin the Good Wheel. Lose and you give the spin away.</p>' + coin +
+      (onPhone ? '<p class="phone-wait"><i class="dot"></i>Waiting for ' + esc(p.name) + '\u2019s phone. Or call it here:</p>' : '') +
       '<div class="row center" id="callBtns"><button class="btn primary big" data-act="call" data-side="H">Heads</button><button class="btn primary big" data-act="call" data-side="T">Tails</button></div>';
   } else {
     const win = pd.call === pd.result;
@@ -2572,7 +2586,7 @@ document.addEventListener('click', e => {
   if (fn) fn(el.dataset, el, e);
 });
 document.addEventListener('keydown', e => {
-  if (mode === 'buzzer') { if ((e.key === ' ' || e.key === 'Enter') && !(e.target && e.target.closest && e.target.closest('button[data-act]:not([data-act="buzz"]),input,textarea,#bzSheet'))) { e.preventDefault(); A.buzz(); } return; }
+  if (mode === 'buzzer') { if ((e.key === ' ' || e.key === 'Enter') && !(e.target && e.target.closest && e.target.closest('button[data-act]:not([data-act="buzz"]),input,textarea,#bzSheet,#bzAsk'))) { e.preventDefault(); A.buzz(); } return; }
   if (e.key === 'Escape' && S.ui.overlay) { A.closeOverlay(); return; }
   if (screen === 'host' && !S.ui.overlay && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); A.hostDone(); return; }
   if (screen === 'title' && !S.ui.overlay && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -2667,8 +2681,43 @@ function hostPresence() {
     locked: f ? S.players.filter(p => pd.wrong.includes(p.id) || p.frozen).map(p => p.id) : [],
     frozen: f ? S.players.filter(p => p.frozen).map(p => p.id) : [],
     bribeReplies: bribeReplies(),
-    stage: screen
+    stage: screen,
+    ask: phoneAsk(),
+    coinResult: g.phase === 'attack' && pd && pd.call && pd.askId ? { id: pd.askId, pid: pd.p, call: pd.call, result: pd.result } : null,
+    wagerLocked: g.phase === 'final' && pd && pd.step === 'wager' ? pd.ids.filter(id => pd.wagers[id] != null) : []
   };
+}
+/* --- calls made on the players' phones: heads or tails at Attack, secret Final Jeopardy bets --- */
+function phoneAsk() {
+  const g = S.game, pd = g.pending;
+  if (!pd) return null;
+  if (g.phase === 'attack' && !pd.call && pd.askId) return { type: 'coin', id: pd.askId, pid: pd.p };
+  if (g.phase === 'final' && pd.step === 'wager' && pd.askId) {
+    const max = {};
+    pd.ids.forEach(id => { const p = player(id); if (p) max[id] = maxWager(p); });
+    return { type: 'wager', id: pd.askId, pids: pd.ids.filter(id => pd.wagers[id] == null), max };
+  }
+  return null;
+}
+const doneAnswers = new Set();
+function processAnswers() {
+  if (!room || mode !== 'host' || !S || busy) return;
+  const g = S.game, pd = g.pending;
+  if (!pd || !pd.askId) return;
+  playerPeers().forEach(pe => {
+    const a = pe.presence.answer, pid = pe.presence.pid;
+    if (!a || typeof a !== 'object' || a.id !== pd.askId || typeof pid !== 'string' || busy) return;
+    const key = a.id + ':' + pid + ':' + String(a.n || '');
+    if (doneAnswers.has(key)) return;
+    if (g.phase === 'attack' && !pd.call && pd.p === pid && (a.v === 'H' || a.v === 'T')) {
+      doneAnswers.add(key);
+      A.call({ side: a.v });
+    } else if (g.phase === 'final' && pd.step === 'wager' && pd.ids.includes(pid) && pd.wagers[pid] == null) {
+      const p = player(pid), n = Math.floor(Number(a.v));
+      doneAnswers.add(key);
+      if (p && n >= 0 && n <= maxWager(p)) { act(() => { pd.wagers[pid] = n; }); SFX.click(); }
+    }
+  });
 }
 /* --- secret bribes: a player's phone puts {bribe:{id, amt, note}} in its presence; only the host's screen lists it --- */
 function bribeReplies() { const b = S.game.bribes || {}, o = {}; Object.keys(b).slice(-20).forEach(k => { o[k] = b[k]; }); return o; }
@@ -2823,7 +2872,10 @@ function buzzView() {
   else if (!open) { state = 'idle'; label = 'WAIT'; sub = 'Listen to the question. The host opens the buzzers.'; }
   else if (myBuzzRound === round) { const pos = buzzPosition(round); state = 'done'; label = pos ? '#' + pos : 'IN'; sub = pos === 1 ? 'You were first!' : 'You buzzed in.'; }
   else { state = 'live'; label = 'BUZZ'; sub = 'Tap to buzz in!'; }
-  return { me, players, q, round, state, label, sub, stage: String(hp.stage || ''), title: String(hp.title || 'P3 Trivia') };
+  const ask = hp.ask && typeof hp.ask === 'object' && typeof hp.ask.id === 'string' ? hp.ask : null;
+  const coinRes = hp.coinResult && typeof hp.coinResult === 'object' && hp.coinResult.pid === me.id ? hp.coinResult : null;
+  const wLocked = Array.isArray(hp.wagerLocked) && hp.wagerLocked.includes(me.id);
+  return { me, players, q, round, state, label, sub, ask, coinRes, wLocked, stage: String(hp.stage || ''), title: String(hp.title || 'P3 Trivia') };
 }
 let bzLast = { pid: null, score: null, state: null, first: -1 };
 let bzBribe = { open: false, amt: 0, note: '', sent: null };
@@ -2839,17 +2891,85 @@ function renderBuzzer() {
   else {
     const cash = v.me.pcash || 0, waiting = !!(bzBribe.sent && bzBribe.sent.status === 'sent');
     body = '<div class="bz-me" style="--pc:' + v.me.color + '">' + avatar(v.me, 'sm') + '<span class="bz-name">' + esc(v.me.name) + '</span><b class="' + (v.me.score < 0 ? 'neg' : '') + '">' + fmt(v.me.score) + '</b><button class="mini" data-act="changeMe">Not you?</button></div>' +
-      '<main class="bz-main">' +
-      (v.q ? '<p class="bz-q">' + esc(v.q.cat) + '<b>' + esc(String(v.q.v)) + '</b></p>' : '<p class="bz-q">Waiting for the next question</p>') +
-      '<button class="bz-btn marquee ' + v.state + '" data-shape="circle" data-inset="-5" data-gap="24" data-bs="8" data-act="buzz"' + (v.state === 'live' ? '' : ' disabled') + ' aria-label="Buzz in">' + esc(v.label) + '</button>' +
-      '<p class="bz-sub" aria-live="polite">' + esc(v.sub) + '</p></main>' +
+      phoneMain(v) +
       '<div class="bz-cash"><span>P-Cash: <b>' + pc(cash) + '</b></span><button class="btn bz-bribe" data-act="bribeOpen"' + (cash > 0 || bzBribe.sent ? '' : ' disabled') + '>' + (waiting ? 'Bribe sent\u2026' : 'Secret bribe') + '</button></div>' +
       '<ol class="bz-scores">' + v.players.slice().sort((a, b) => b.score - a.score).map(p => '<li' + (p.id === v.me.id ? ' class="me"' : '') + '><i class="dot" style="--pc:' + p.color + '"></i><span>' + esc(p.name) + '</span><b class="' + (p.score < 0 ? 'neg' : '') + '">' + fmt(p.score) + '</b></li>').join('') + '</ol>';
   }
   root.innerHTML = '<div class="bz">' + top + body + '</div>';
   bulbify(root);
   buzzerEffects(v);
+  renderAskSheet(v);
 }
+let myCoin = null, bzWager = { key: '', id: '', amt: '', sent: null };
+// The middle of the phone: the buzzer, or the heads/tails call when it's this player's Attack
+function phoneMain(v) {
+  if (v.ask && v.ask.type === 'coin' && v.ask.pid === v.me.id) {
+    const sent = myCoin && myCoin.id === v.ask.id;
+    return '<main class="bz-main"><div class="bz-msg"><h2>Attack!</h2><p>' + (sent ? 'You called ' + (myCoin.v === 'H' ? 'heads' : 'tails') + '. Watch the big screen!' : 'Call it in the air. Win and you spin the Good Wheel. Lose and you give the spin away.') + '</p></div>' +
+      (sent ? '<div class="bz-coin picked ' + (myCoin.v === 'H' ? 'heads' : 'tails') + '">' + (myCoin.v === 'H' ? 'HEADS' : 'TAILS') + '</div>'
+        : '<div class="bz-coins"><button class="bz-coin heads" data-act="callCoin" data-side="H">HEADS</button><button class="bz-coin tails" data-act="callCoin" data-side="T">TAILS</button></div>') + '</main>';
+  }
+  if (v.coinRes) {
+    const win = v.coinRes.call === v.coinRes.result;
+    return '<main class="bz-main"><div class="bz-coin picked ' + (v.coinRes.result === 'H' ? 'heads' : 'tails') + '">' + (v.coinRes.result === 'H' ? 'HEADS' : 'TAILS') + '</div><div class="bz-msg"><h2>' + (win ? 'You win the Attack!' : 'You lose the Attack') + '</h2><p>' + (win ? 'Get ready to spin the Good Wheel.' : 'You have to give your Good Wheel spin to someone.') + '</p></div></main>';
+  }
+  return '<main class="bz-main">' +
+    (v.q ? '<p class="bz-q">' + esc(v.q.cat) + '<b>' + esc(String(v.q.v)) + '</b></p>' : '<p class="bz-q">Waiting for the next question</p>') +
+    '<button class="bz-btn marquee ' + v.state + '" data-shape="circle" data-inset="-5" data-gap="24" data-bs="8" data-act="buzz"' + (v.state === 'live' ? '' : ' disabled') + ' aria-label="Buzz in">' + esc(v.label) + '</button>' +
+    '<p class="bz-sub" aria-live="polite">' + esc(v.sub) + '</p></main>';
+}
+// Final Jeopardy bet sheet on the phone. Only redrawn when its state changes, so typing isn't interrupted.
+function renderAskSheet(v) {
+  let el = $('#bzAsk');
+  if (!el) { el = document.createElement('div'); el.id = 'bzAsk'; el.className = 'overlay'; el.hidden = true; document.body.appendChild(el); }
+  const ask = v && v.me && v.ask && v.ask.type === 'wager' ? v.ask : null;
+  const pids = ask && Array.isArray(ask.pids) ? ask.pids : []; // an empty list doesn't survive the trip through Firebase
+  const mine = ask && (pids.includes(v.me.id) || v.wLocked || (bzWager.sent && bzWager.sent.id === ask.id));
+  if (!mine) { if (!el.hidden) { el.hidden = true; el.innerHTML = ''; } bzWager.key = ''; return; }
+  if (bzWager.id !== ask.id) bzWager = { key: '', id: ask.id, amt: '', sent: null, locked: false };
+  // the host can unlock a bet to let the player change it
+  if (v.wLocked) bzWager.locked = true;
+  else if (bzWager.locked && pids.includes(v.me.id)) { bzWager.locked = false; bzWager.sent = null; }
+  const max = Math.max(0, Math.floor(Number(ask.max && ask.max[v.me.id]) || 0));
+  const state = v.wLocked ? 'locked' : bzWager.sent ? 'sent' : 'open';
+  const key = ask.id + ':' + state + ':' + max;
+  if (key === bzWager.key && !el.hidden) return;
+  bzWager.key = key;
+  let h;
+  if (state === 'locked') h = '<h2>Bet locked!</h2><p class="lead">' + (bzWager.sent ? 'You\u2019re betting <b>' + fmt(bzWager.sent.v) + '</b>. Only you and the host know.' : 'The host locked in your bet.') + ' Good luck!</p>';
+  else if (state === 'sent') h = '<h2>Bet sent</h2><p class="lead">' + fmt(bzWager.sent.v) + ' is on its way to the host\u2026</p>';
+  else {
+    const quick = [100, 500, 1000].filter(n => n < max).concat(max > 0 ? [Math.floor(max / 2), max] : []).filter((n, i, a) => n > 0 && a.indexOf(n) === i).sort((a, b) => a - b);
+    h = '<h2>Final Jeopardy!</h2><p class="lead">Place your secret bet. You have <b>' + fmt(v.me.score) + '</b>, so you can bet up to <b>' + fmt(max) + '</b>.</p>' +
+      '<div class="wagers">' + quick.map(n => '<button class="btn" data-act="wagerPick" data-amt="' + n + '">' + (n === max ? 'All in \u00b7 ' : '') + fmt(n) + '</button>').join('') + '</div>' +
+      '<label class="field">Your bet<input class="input" id="bz-wager" inputmode="numeric" autocomplete="off" placeholder="0 to ' + fmt(max) + '" value="' + esc(bzWager.amt) + '"></label>' +
+      '<p class="ferr" id="bz-wager-err" aria-live="polite"></p>' +
+      '<div class="row end"><button class="btn primary big" data-act="wagerLock" data-max="' + max + '">Lock my bet</button></div>';
+  }
+  el.innerHTML = '<div class="sheet clue final bz-wager-sheet" role="dialog" aria-label="Final Jeopardy bet">' + h + '</div>';
+  el.hidden = false;
+}
+A.callCoin = d => {
+  const v = buzzView();
+  if (!room || !v.ask || v.ask.type !== 'coin' || !v.me || v.ask.pid !== v.me.id) return;
+  const side = d.side === 'T' ? 'T' : 'H';
+  myCoin = { id: v.ask.id, v: side };
+  room.presence({ answer: { id: v.ask.id, v: side, n: uid() } }).catch(() => {});
+  SFX.coin(1200); try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* not allowed here */ }
+  renderBuzzer();
+};
+A.wagerPick = d => { const i = $('#bz-wager'); bzWager.amt = String(d.amt); if (i) i.value = d.amt; SFX.click(); };
+A.wagerLock = d => {
+  const v = buzzView(), i = $('#bz-wager'), err = $('#bz-wager-err'), max = +d.max;
+  if (!room || !v.ask || v.ask.type !== 'wager') return;
+  const raw = i ? String(i.value).trim() : '', n = parseInt(raw.replace(/[^\d]/g, ''), 10);
+  if (raw === '' || isNaN(n)) { if (err) err.textContent = 'Type a bet from 0 to ' + fmt(max) + '.'; return; }
+  if (n > max) { if (err) err.textContent = 'Too high. The most you can bet is ' + fmt(max) + '.'; return; }
+  bzWager.amt = String(n); bzWager.sent = { id: v.ask.id, v: n };
+  room.presence({ answer: { id: v.ask.id, v: n, n: uid() } }).catch(() => {});
+  SFX.cash();
+  renderAskSheet(v);
+};
 // Sounds and confetti on the phone: buzzers opening, being first, points won or lost, bribe answers
 function buzzerEffects(v) {
   const h = hostPeer(), hp = h && h.presence;
@@ -2869,6 +2989,7 @@ function buzzerEffects(v) {
     deltaAt($('.bz-me b'), v.me.score - bzLast.score);
   }
   if (v.state === 'live' && bzLast.state && bzLast.state !== 'live') SFX.open();
+  if (v.coinRes && bzLast.coin !== v.coinRes.id) { bzLast.coin = v.coinRes.id; SFX.clink(); if (v.coinRes.call === v.coinRes.result) { setTimeout(SFX.yay, 150); burst($('.bz-coin'), 80); } else setTimeout(SFX.sad, 150); }
   if (v.stage === 'host' && bzLast.stage && bzLast.stage !== 'host') { SFX.fanfare(); burst($('.bz-btn'), 60); }
   bzLast.stage = v.stage;
   if (v.state === 'done' && v.label === '#1' && bzLast.first !== v.round) { bzLast.first = v.round; SFX.yay(); burst($('.bz-btn'), 90); }
@@ -3058,6 +3179,7 @@ function onlineSetupHtml() {
 function liveRender() {
   if (mode === 'buzzer') { renderBuzzer(); return; }
   if (!S) return;
+  setTimeout(processAnswers, 0);
   renderHeader(); renderPodiums(); updateBuzzPanel();
   if (S.ui.overlay && (S.ui.overlay.type === 'buzzers' || S.ui.overlay.type === 'bribes')) renderOverlay();
   const tb = $('#tsBuzzN'); if (tb) tb.textContent = buzzerCount() + ' in';
